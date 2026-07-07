@@ -39,7 +39,7 @@ export default async function WatchPage({ params, searchParams }: Props) {
   if (!currentEp) notFound();
 
   const epList = currentServer.server_data;
-  const currentIdx = epList.findIndex(ep => ep.slug === tap) || 0;
+  const currentIdx = Math.max(0, epList.findIndex(ep => ep.slug === tap));
   const prevEp = epList[currentIdx - 1] ?? null;
   const nextEp = epList[currentIdx + 1] ?? null;
 

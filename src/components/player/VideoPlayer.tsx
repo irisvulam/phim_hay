@@ -10,24 +10,65 @@ interface VideoPlayerProps {
 }
 
 export default function VideoPlayer({ m3u8Url, embedUrl, poster, title }: VideoPlayerProps) {
-  if (embedUrl) {
-    return (
-      <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
-        <iframe
-          src={embedUrl}
-          className="absolute inset-0 w-full h-full border-0"
-          allowFullScreen
-          allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
-          title={title || 'Video Player'}
-          referrerPolicy="no-referrer-when-downgrade"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-pointer-lock"
-        />
-      </div>
-    );
+  // Ưu tiên m3u8 — phát trực tiếp trong trang bằng hls.js
+  if (m3u8Url) {
+    return <HlsPlayer m3u8Url={m3u8Url} poster={poster} title={title} />;
   }
 
-  // Fallback: HLS native player khi không có embed URL
-  return <HlsPlayer m3u8Url={m3u8Url} poster={poster} title={title} />;
+  // Nguồn embed (streamc.xyz) hiện CHẶN phát video khi bị nhúng iframe,
+  // nên phải mở trình phát ở tab mới (giống cách phim.nguonc.com làm).
+  if (embedUrl) {
+    return <EmbedLauncher embedUrl={embedUrl} poster={poster} title={title} />;
+  }
+
+  return (
+    <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center">
+      <span className="text-gray-400">Tập phim chưa có nguồn phát</span>
+    </div>
+  );
+}
+
+function EmbedLauncher({
+  embedUrl,
+  poster,
+  title,
+}: {
+  embedUrl: string;
+  poster?: string;
+  title?: string;
+}) {
+  const openPlayer = () => {
+    window.open(embedUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  return (
+    <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden group">
+      {poster && (
+        <img
+          src={poster}
+          alt={title || 'Poster'}
+          className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:opacity-40 transition-opacity"
+        />
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/40" />
+
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 z-10">
+        <button
+          onClick={openPlayer}
+          aria-label={`Phát ${title || 'video'}`}
+          className="w-20 h-20 rounded-full bg-[var(--primary-color)] text-[#191b24] flex items-center justify-center text-3xl shadow-2xl hover:scale-110 transition-transform cursor-pointer"
+        >
+          ▶
+        </button>
+        <div className="text-center px-4">
+          {title && <p className="text-white font-semibold mb-1">{title}</p>}
+          <p className="text-gray-300 text-sm">
+            Bấm để mở trình phát trong tab mới
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function HlsPlayer({
