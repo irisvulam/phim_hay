@@ -37,12 +37,14 @@ function EmbedLauncher({
   poster?: string;
   title?: string;
 }) {
-  const openPlayer = () => {
-    window.open(embedUrl, '_blank', 'noopener,noreferrer');
-  };
-
   return (
-    <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden group">
+    <a
+      href={embedUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`Phát ${title || 'video'}`}
+      className="relative block w-full aspect-video bg-black rounded-lg overflow-hidden group cursor-pointer"
+    >
       {poster && (
         <img
           src={poster}
@@ -53,21 +55,17 @@ function EmbedLauncher({
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/40" />
 
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 z-10">
-        <button
-          onClick={openPlayer}
-          aria-label={`Phát ${title || 'video'}`}
-          className="w-20 h-20 rounded-full bg-[var(--primary-color)] text-[#191b24] flex items-center justify-center text-3xl shadow-2xl hover:scale-110 transition-transform cursor-pointer"
-        >
+        <span className="w-20 h-20 rounded-full bg-[var(--primary-color)] text-[#191b24] flex items-center justify-center text-3xl shadow-2xl group-hover:scale-110 transition-transform">
           ▶
-        </button>
-        <div className="text-center px-4">
-          {title && <p className="text-white font-semibold mb-1">{title}</p>}
-          <p className="text-gray-300 text-sm">
+        </span>
+        <span className="text-center px-4 block">
+          {title && <span className="text-white font-semibold mb-1 block">{title}</span>}
+          <span className="text-gray-300 text-sm block">
             Bấm để mở trình phát trong tab mới
-          </p>
-        </div>
+          </span>
+        </span>
       </div>
-    </div>
+    </a>
   );
 }
 
