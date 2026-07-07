@@ -1,56 +1,82 @@
-import { getFilmDetail, getFilmsByGenre } from '@/lib/api';
+'use client';
+
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { getFilmDetail, getFilmsByGenre, FilmDetail, PaginatedFilms } from '@/lib/api';
 import VideoPlayer from '@/components/player/VideoPlayer';
 import FilmCard from '@/components/films/FilmCard';
-import { notFound } from 'next/navigation';
-import Link from 'next/link';
+import { PageLoading, LoadError } from '@/components/ui/Skeleton';
 
-interface Props {
-  params: Promise<{ slug: string; tap: string }>;
-  searchParams: Promise<{ server?: string }>;
+export default function WatchPage() {
+  return (
+    <Suspense fallback={<PageLoading label="Đang tải..." />}>
+      <WatchPageInner />
+    </Suspense>
+  );
 }
 
-export async function generateMetadata({ params }: Props) {
-  const { slug, tap } = await params;
-  const data = await getFilmDetail(slug).catch(() => null);
-  if (!data) return {};
-  const { film } = data;
-  const epName = tap.replace('tap-', 'Tập ');
-  return {
-    title: `Xem phim ${film.name} - ${epName} - Vietsub`,
-    description: `Xem phim ${film.name} ${epName} ${film.quality} ${film.language} online miễn phí trên PhimHay`,
-    openGraph: {
-      title: `Xem phim ${film.name} - ${epName}`,
-      images: [film.thumb_url],
-    },
-  };
-}
+function WatchPageInner() {
+  const params = useParams<{ slug: string; tap: string }>();
+  const searchParams = useSearchParams();
+  const slug = params?.slug;
+  const tap = params?.tap;
+  const serverIdx = parseInt(searchParams.get('server') || '0', 10);
 
-export default async function WatchPage({ params, searchParams }: Props) {
-  const { slug, tap } = await params;
-  const resolvedSearchParams = await searchParams;
-  const data = await getFilmDetail(slug).catch(() => null);
-  if (!data) notFound();
+  const [data, setData] = useState<FilmDetail | null>(null);
+  const [related, setRelated] = useState<PaginatedFilms | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!slug) return;
+    setLoading(true);
+    setError(false);
+    try {
+      const detail = await getFilmDetail(slug);
+      if (!detail?.film) { setError(true); setLoading(false); return; }
+      setData(detail);
+      setLoading(false);
+
+      const genreSlug = detail.film.category?.[0]?.slug;
+      if (genreSlug) {
+        getFilmsByGenre(genreSlug, 1).then(setRelated).catch(() => null);
+      }
+    } catch {
+      setError(true);
+      setLoading(false);
+    }
+  }, [slug]);
+
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (data?.film && tap) {
+      const epName = tap.replace('tap-', 'Tập ');
+      document.title = `Xem phim ${data.film.name} - ${epName} - PhimHay`;
+    }
+  }, [data, tap]);
+
+  if (loading) return <PageLoading label="Đang tải tập phim..." />;
+  if (error || !data) return <LoadError onRetry={load} message="Không tìm thấy phim hoặc nguồn dữ liệu tạm thời lỗi." />;
 
   const { film, episodes } = data;
-  const serverIdx = parseInt(resolvedSearchParams.server || '0', 10);
   const currentServer = episodes[serverIdx] || episodes[0];
   const currentEp = currentServer?.server_data.find(ep => ep.slug === tap) ?? currentServer?.server_data[0];
-  
-  if (!currentEp) notFound();
+
+  if (!currentEp) {
+    return <LoadError message="Tập phim không tồn tại." />;
+  }
 
   const epList = currentServer.server_data;
   const currentIdx = Math.max(0, epList.findIndex(ep => ep.slug === tap));
   const prevEp = epList[currentIdx - 1] ?? null;
   const nextEp = epList[currentIdx + 1] ?? null;
 
-  const related = film.category?.[0]?.slug
-    ? await getFilmsByGenre(film.category[0].slug, 1).catch(() => null)
-    : null;
-
   return (
     <div className="bg-[#191b24] min-h-screen">
       <div className="mx-auto px-0 md:px-4 lg:px-8 max-w-screen-[1600px] flex flex-col xl:flex-row gap-6 pt-0 md:pt-6">
-        
+
         {/* MAIN PART */}
         <div className="flex-1 w-full xl:w-[70%]">
           <nav className="mb-4 px-4 md:px-0 flex items-center text-sm gap-2 text-[var(--text-base)]">
@@ -88,10 +114,10 @@ export default async function WatchPage({ params, searchParams }: Props) {
                 ))}
               </div>
             </div>
-            
+
             <div className="flex gap-2 w-full md:w-auto mt-2 md:mt-0 ml-auto">
               {prevEp && (
-                <Link className="px-4 py-2 bg-[#3e435c] hover:bg-[#535d8e] text-white rounded-md text-sm font-medium flex items-center justify-center flex-1 md:flex-none transition-colors" 
+                <Link className="px-4 py-2 bg-[#3e435c] hover:bg-[#535d8e] text-white rounded-md text-sm font-medium flex items-center justify-center flex-1 md:flex-none transition-colors"
                    href={`/xem-phim/${film.slug}/${prevEp.slug}?server=${serverIdx}`}>
                   ← Tập trước
                 </Link>
@@ -121,7 +147,7 @@ export default async function WatchPage({ params, searchParams }: Props) {
 
         {/* SIDEBAR */}
         <div className="w-full xl:w-[30%] px-4 xl:px-0 flex flex-col gap-6 pb-20">
-          
+
           <div className="bg-[var(--bg-2)] rounded-xl border border-white/5 overflow-hidden shadow-lg p-5">
             <div className="flex gap-4">
               <Link href={`/${film.slug}`} className="w-24 shrink-0 block aspect-[2/3] rounded-md overflow-hidden relative group">
@@ -156,8 +182,8 @@ export default async function WatchPage({ params, searchParams }: Props) {
                   <Link key={ep.slug}
                      href={`/xem-phim/${film.slug}/${ep.slug}?server=${serverIdx}`}
                      className={`text-center text-sm py-2 px-1 rounded transition-colors truncate ${
-                       ep.slug === tap 
-                       ? 'bg-[var(--primary-color)] text-[#191b24] font-bold' 
+                       ep.slug === tap
+                       ? 'bg-[var(--primary-color)] text-[#191b24] font-bold'
                        : 'bg-[#202331] text-white hover:bg-[#3e435c]'
                      }`}
                      title={ep.name}>

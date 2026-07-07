@@ -1,42 +1,54 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
 import { getFilmsByCategory, getNewFilms, PaginatedFilms } from '@/lib/api';
 import HeroSlider from '@/components/films/HeroSlider';
 import FilmRow from '@/components/films/FilmRow';
+import { PageLoading, LoadError } from '@/components/ui/Skeleton';
 
-// Không prerender lúc build — API nguonc chặn IP của build server (403),
-// render lúc request và cache theo revalidate của từng fetch.
-export const dynamic = 'force-dynamic';
+// Trang chủ fetch API trực tiếp từ trình duyệt người dùng —
+// server chỉ serve shell tĩnh, không gọi API nguonc.
+
+type HomeData = {
+  newFilms: PaginatedFilms | null;
+  cinemaFilms: PaginatedFilms | null;
+  seriesFilms: PaginatedFilms | null;
+  animeFilms: PaginatedFilms | null;
+};
 
 const safe = (p: Promise<PaginatedFilms>) => p.catch(() => null);
 
-export default async function HomePage() {
-  const [newFilms, cinemaFilms, seriesFilms, animeFilms] = await Promise.all([
-    safe(getNewFilms(1)),
-    safe(getFilmsByCategory('phim-dang-chieu', 1)),
-    safe(getFilmsByCategory('phim-bo', 1)),
-    safe(getFilmsByCategory('hoat-hinh', 1)),
-  ]);
+export default function HomePage() {
+  const [data, setData] = useState<HomeData | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const allFailed = !newFilms && !cinemaFilms && !seriesFilms && !animeFilms;
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [newFilms, cinemaFilms, seriesFilms, animeFilms] = await Promise.all([
+      safe(getNewFilms(1)),
+      safe(getFilmsByCategory('phim-dang-chieu', 1)),
+      safe(getFilmsByCategory('phim-bo', 1)),
+      safe(getFilmsByCategory('hoat-hinh', 1)),
+    ]);
+    setData({ newFilms, cinemaFilms, seriesFilms, animeFilms });
+    setLoading(false);
+  }, []);
 
-  if (allFailed) {
-    return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3 text-center px-4">
-        <h1 className="text-2xl font-bold text-white">Không tải được dữ liệu phim</h1>
-        <p className="text-[var(--text-base)]">
-          Nguồn phim tạm thời không truy cập được, vui lòng thử lại sau.
-        </p>
-      </div>
-    );
-  }
+  useEffect(() => { load(); }, [load]);
+
+  if (loading) return <PageLoading label="Đang tải phim..." />;
+
+  const allFailed = !data?.newFilms && !data?.cinemaFilms && !data?.seriesFilms && !data?.animeFilms;
+  if (allFailed) return <LoadError onRetry={load} />;
 
   return (
     <>
-      {newFilms?.items && <HeroSlider films={newFilms.items.slice(0, 8)} />}
+      {data?.newFilms?.items && <HeroSlider films={data.newFilms.items.slice(0, 8)} />}
       <div className="mx-auto px-4 sm:px-6 lg:px-8 max-w-screen-xl">
-        <FilmRow title="Phim Mới Cập Nhật"  films={newFilms?.items || []}    moreLink="/danh-sach/phim-moi-cap-nhat" />
-        <FilmRow title="Đang Chiếu Rạp"     films={cinemaFilms?.items || []} moreLink="/danh-sach/phim-dang-chieu"  />
-        <FilmRow title="Phim Bộ Hot"        films={seriesFilms?.items || []} moreLink="/danh-sach/phim-bo"          />
-        <FilmRow title="Anime Mới Nhất"     films={animeFilms?.items || []}  moreLink="/danh-sach/hoat-hinh"        />
+        <FilmRow title="Phim Mới Cập Nhật"  films={data?.newFilms?.items || []}    moreLink="/danh-sach/phim-moi-cap-nhat" />
+        <FilmRow title="Đang Chiếu Rạp"     films={data?.cinemaFilms?.items || []} moreLink="/danh-sach/phim-dang-chieu"  />
+        <FilmRow title="Phim Bộ Hot"        films={data?.seriesFilms?.items || []} moreLink="/danh-sach/phim-bo"          />
+        <FilmRow title="Anime Mới Nhất"     films={data?.animeFilms?.items || []}  moreLink="/danh-sach/hoat-hinh"        />
       </div>
     </>
   );

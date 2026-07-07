@@ -1,53 +1,61 @@
-import { getFilmDetail, getFilmsByGenre } from '@/lib/api';
-import { notFound } from 'next/navigation';
-import FilmCard from '@/components/films/FilmCard';
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { getFilmDetail, getFilmsByGenre, FilmDetail, PaginatedFilms } from '@/lib/api';
+import FilmCard from '@/components/films/FilmCard';
+import { PageLoading, LoadError } from '@/components/ui/Skeleton';
 
-interface Props { params: Promise<{ slug: string }> }
+export default function FilmDetailPage() {
+  const params = useParams<{ slug: string }>();
+  const slug = params?.slug;
 
-export async function generateMetadata({ params }: Props) {
-  const { slug } = await params;
-  const data = await getFilmDetail(slug).catch(() => null);
-  if (!data) return {};
-  const { film } = data;
-  return {
-    title: `${film.name} (${film.original_name}) - Vietsub - PhimHay`,
-    description: film.description?.slice(0, 155),
-    openGraph: {
-      title: film.name,
-      description: film.description?.slice(0, 155),
-      images: [film.poster_url],
-      locale: 'vi_VN',
-    },
-    twitter: { card: 'summary_large_image', images: [film.poster_url] },
-  };
-}
+  const [data, setData] = useState<FilmDetail | null>(null);
+  const [related, setRelated] = useState<PaginatedFilms | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-export default async function FilmDetailPage({ params }: Props) {
-  const { slug } = await params;
-  const data = await getFilmDetail(slug).catch(() => null);
-  if (!data) notFound();
+  const load = useCallback(async () => {
+    if (!slug) return;
+    setLoading(true);
+    setError(false);
+    try {
+      const detail = await getFilmDetail(slug);
+      if (!detail?.film) { setError(true); setLoading(false); return; }
+      setData(detail);
+      document.title = `${detail.film.name} (${detail.film.original_name}) - Vietsub - PhimHay`;
+      setLoading(false);
+
+      const genreSlug = detail.film.category?.[0]?.slug;
+      if (genreSlug) {
+        getFilmsByGenre(genreSlug, 1).then(setRelated).catch(() => null);
+      }
+    } catch {
+      setError(true);
+      setLoading(false);
+    }
+  }, [slug]);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (loading) return <PageLoading label="Đang tải thông tin phim..." />;
+  if (error || !data) return <LoadError onRetry={load} message="Không tìm thấy phim hoặc nguồn dữ liệu tạm thời lỗi." />;
 
   const { film, episodes } = data;
   const firstEp = episodes?.[0]?.server_data?.[0];
 
-  const related = film.category?.[0]?.slug
-    ? await getFilmsByGenre(film.category[0].slug, 1).catch(() => null)
-    : null;
-
   return (
     <div className="relative min-h-screen">
       {/* Background Blur */}
-      <div 
+      <div
         className="absolute top-0 left-0 w-full h-[60vh] opacity-20 pointer-events-none bg-cover bg-center"
-        style={{ backgroundImage: `url(${film.poster_url || film.thumb_url})`, filter: 'blur(20px)', maskImage: 'linear-gradient(to bottom, black 50%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, black 50%, transparent 100%)' }} 
+        style={{ backgroundImage: `url(${film.poster_url || film.thumb_url})`, filter: 'blur(20px)', maskImage: 'linear-gradient(to bottom, black 50%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, black 50%, transparent 100%)' }}
       />
 
       <div className="mx-auto px-4 sm:px-6 lg:px-8 max-w-screen-xl relative z-10 py-6 text-[var(--text-base)]">
         <nav className="mb-6 flex items-center text-sm gap-2">
           <Link href="/" className="hover:text-white">Trang chủ</Link>
-          <span>&rsaquo;</span>
-          <Link href={`/the-loai/${film.category[0]?.slug}`} className="hover:text-white">{film.category[0]?.name}</Link>
           <span>&rsaquo;</span>
           <span className="text-white truncate">{film.name}</span>
         </nav>
@@ -59,7 +67,7 @@ export default async function FilmDetailPage({ params }: Props) {
               <img src={film.poster_url || film.thumb_url} alt={film.name} className="w-full h-full object-cover" />
             </div>
           </div>
-          
+
           <div className="flex-1 flex flex-col justify-center">
             <h1 className="text-3xl md:text-5xl font-bold text-white mb-2">{film.name}</h1>
             <h2 className="text-xl md:text-2xl text-gray-400 mb-4">{film.original_name}</h2>
@@ -76,7 +84,7 @@ export default async function FilmDetailPage({ params }: Props) {
                 <div className="flex gap-2">
                   <span className="text-gray-500 w-24 shrink-0">Thể loại:</span>
                   <div className="flex flex-wrap gap-x-2 gap-y-1">
-                    {film.category.map(c => <Link key={c.slug} href={`/the-loai/${c.slug}`} className="text-white hover:text-[var(--primary-color)]">{c.name}</Link>)}
+                    {film.category.map(c => <span key={c.slug} className="text-white">{c.name}</span>)}
                   </div>
                 </div>
               )}
@@ -84,19 +92,19 @@ export default async function FilmDetailPage({ params }: Props) {
                 <div className="flex gap-2">
                   <span className="text-gray-500 w-24 shrink-0">Quốc gia:</span>
                   <div className="flex flex-wrap gap-x-2 gap-y-1">
-                    {film.country.map(c => <Link key={c.slug} href={`/quoc-gia/${c.slug}`} className="text-white hover:text-[var(--primary-color)]">{c.name}</Link>)}
+                    {film.country.map(c => <span key={c.slug} className="text-white">{c.name}</span>)}
                   </div>
                 </div>
               )}
               {film.director && (
                 <div className="flex gap-2">
-                  <span className="text-gray-500 w-24 shrink-0">Đạo diễn:</span> 
+                  <span className="text-gray-500 w-24 shrink-0">Đạo diễn:</span>
                   <span className="text-white">{film.director}</span>
                 </div>
               )}
               {film.casts && (
                 <div className="flex gap-2">
-                  <span className="text-gray-500 w-24 shrink-0">Diễn viên:</span> 
+                  <span className="text-gray-500 w-24 shrink-0">Diễn viên:</span>
                   <span className="text-white">{film.casts}</span>
                 </div>
               )}
@@ -126,7 +134,7 @@ export default async function FilmDetailPage({ params }: Props) {
             </div>
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
               {server.server_data.map(ep => (
-                <Link key={ep.slug} 
+                <Link key={ep.slug}
                    href={`/xem-phim/${film.slug}/${ep.slug}?server=${idx}`}
                    className="bg-[#202331] hover:bg-[var(--primary-color)] hover:text-[var(--primary-button-text)] text-sm text-center py-2 px-3 rounded transition-colors text-white truncate"
                    title={ep.name}>
@@ -151,18 +159,6 @@ export default async function FilmDetailPage({ params }: Props) {
           </section>
         )}
       </div>
-
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
-        '@context': 'https://schema.org',
-        '@type': 'Movie',
-        name: film.name,
-        alternateName: film.original_name,
-        description: film.description,
-        image: film.poster_url,
-        inLanguage: 'vi',
-        genre: film.category?.map(c => c.name),
-        director: film.director ? { '@type': 'Person', name: film.director } : undefined,
-      })}} />
     </div>
   );
 }
