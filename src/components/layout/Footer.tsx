@@ -35,7 +35,7 @@ export default function Footer() {
               <li><Link href="/quoc-gia/trung-quoc" className="hover:text-[#ffd875]">Trung Quốc</Link></li>
               <li><Link href="/quoc-gia/han-quoc" className="hover:text-[#ffd875]">Hàn Quốc</Link></li>
               <li><Link href="/quoc-gia/nhat-ban" className="hover:text-[#ffd875]">Nhật Bản</Link></li>
-              <li><Link href="/quoc-gia/my" className="hover:text-[#ffd875]">Âu Mỹ</Link></li>
+              <li><Link href="/quoc-gia/au-my" className="hover:text-[#ffd875]">Âu Mỹ</Link></li>
               <li><Link href="/quoc-gia/viet-nam" className="hover:text-[#ffd875]">Việt Nam</Link></li>
             </ul>
           </div>
