@@ -7,6 +7,7 @@ import { getFilmDetail, getFilmsByGenre, FilmDetail, PaginatedFilms } from '@/li
 import VideoPlayer from '@/components/player/VideoPlayer';
 import FilmCard from '@/components/films/FilmCard';
 import { PageLoading, LoadError } from '@/components/ui/Skeleton';
+import { detectTVMode } from '@/lib/tv';
 
 export default function WatchPage() {
   return (
@@ -57,6 +58,17 @@ function WatchPageInner() {
     }
   }, [data, tap]);
 
+  // TV mode (rule 09): auto-focus player khi trang load để bấm OK là phát ngay
+  useEffect(() => {
+    if (!data?.film || !detectTVMode()) return;
+    const t = setTimeout(() => {
+      document
+        .querySelector<HTMLElement>('#player-section video, #player-section a')
+        ?.focus();
+    }, 100);
+    return () => clearTimeout(t);
+  }, [data, tap]);
+
   if (loading) return <PageLoading label="Đang tải tập phim..." />;
   if (error || !data) return <LoadError onRetry={load} message="Không tìm thấy phim hoặc nguồn dữ liệu tạm thời lỗi." />;
 
@@ -87,7 +99,7 @@ function WatchPageInner() {
             <span className="text-white">{currentEp.name}</span>
           </nav>
 
-          <div className="shadow-2xl md:rounded-xl overflow-hidden bg-black mb-4">
+          <div id="player-section" className="shadow-2xl md:rounded-xl overflow-hidden bg-black mb-4">
             <VideoPlayer
               m3u8Url={currentEp.link_m3u8}
               embedUrl={currentEp.link_embed}
@@ -181,6 +193,7 @@ function WatchPageInner() {
                 {epList.map(ep => (
                   <Link key={ep.slug}
                      href={`/xem-phim/${film.slug}/${ep.slug}?server=${serverIdx}`}
+                     aria-current={ep.slug === tap ? 'true' : undefined}
                      className={`text-center text-sm py-2 px-1 rounded transition-colors truncate ${
                        ep.slug === tap
                        ? 'bg-[var(--primary-color)] text-[#191b24] font-bold'

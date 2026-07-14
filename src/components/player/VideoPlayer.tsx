@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
+import { detectTVMode } from '@/lib/tv';
 
 interface VideoPlayerProps {
   m3u8Url?: string;
@@ -37,10 +38,16 @@ function EmbedLauncher({
   poster?: string;
   title?: string;
 }) {
+  // TV mode (rule 09): TV browser xử lý popup/tab mới rất tệ → điều hướng cùng tab
+  const [isTV, setIsTV] = useState(false);
+  useEffect(() => {
+    setIsTV(detectTVMode());
+  }, []);
+
   return (
     <a
       href={embedUrl}
-      target="_blank"
+      target={isTV ? undefined : '_blank'}
       rel="noopener noreferrer"
       aria-label={`Phát ${title || 'video'}`}
       className="relative block w-full aspect-video bg-black rounded-lg overflow-hidden group cursor-pointer"
@@ -61,7 +68,7 @@ function EmbedLauncher({
         <span className="text-center px-4 block">
           {title && <span className="text-white font-semibold mb-1 block">{title}</span>}
           <span className="text-gray-300 text-sm block">
-            Bấm để mở trình phát trong tab mới
+            {isTV ? 'Bấm OK để mở trình phát (Back để quay lại)' : 'Bấm để mở trình phát trong tab mới'}
           </span>
         </span>
       </div>

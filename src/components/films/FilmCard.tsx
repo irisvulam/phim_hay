@@ -8,7 +8,7 @@ interface FilmCardProps {
 export default function FilmCard({ film }: FilmCardProps) {
   return (
     <article className="relative flex flex-col gap-2 group">
-      <Link href={`/${film.slug}`} className="relative block w-full aspect-[2/3] overflow-hidden rounded-lg bg-[var(--bg-2)] cursor-pointer">
+      <Link href={`/${film.slug}`} className="film-card-link relative block w-full aspect-[2/3] overflow-hidden rounded-lg bg-[var(--bg-2)] cursor-pointer">
         <img
           src={film.thumb_url}
           alt={film.name}
@@ -24,7 +24,7 @@ export default function FilmCard({ film }: FilmCardProps) {
           {film.current_episode}
         </span>
         
-        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-within:opacity-100">
           <span className="text-[32px] text-[var(--primary-color)]">▶</span>
         </div>
       </Link>

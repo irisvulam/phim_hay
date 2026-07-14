@@ -42,6 +42,59 @@ body {
   background: var(--bg-color);
 }
 
+/* ===== Focus (keyboard desktop + remote TV) — rule 09-tv-support ===== */
+:focus-visible {
+  outline: 3px solid var(--primary-color);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* Element được focus không bị sticky header (h-16) che khi scroll tới */
+a, button, input, select, textarea, video, [tabindex] {
+  scroll-margin: 96px 24px;
+}
+
+/* ===== TV mode (html[data-mode="tv"]) — 10-foot UI ===== */
+html[data-mode="tv"] body {
+  font-size: 18px;
+  --text-base: #c8c8c8; /* contrast cao hơn để đọc từ xa 3m */
+  /* Vùng an toàn overscan */
+  padding-left: 2.5vw;
+  padding-right: 2.5vw;
+}
+html[data-mode="tv"] :focus {
+  outline: 4px solid var(--primary-color);
+  outline-offset: 3px;
+}
+html[data-mode="tv"] .film-card-link:focus {
+  transform: scale(1.06);
+  z-index: 10;
+  transition: transform 0.15s ease;
+}
+/* Tắt hiệu ứng nặng cho GPU yếu của TV */
+html[data-mode="tv"] header {
+  backdrop-filter: none !important;
+  background: var(--bg-color) !important;
+}
+html[data-mode="tv"] img {
+  transition: none !important;
+}
+/* Nút thoát TV mode */
+.tv-exit-btn {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 100;
+  background: var(--bg-3);
+  color: var(--text-base);
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  opacity: 0.7;
+}
+.tv-exit-btn:hover, .tv-exit-btn:focus { opacity: 1; color: #fff; }
+
 /* Headings */
 .heading-xl { font-size: 2.4em; font-weight: 600; color: #fff; line-height: 1.2; }
 .heading-md { font-size: 1.8em; font-weight: 600; color: #fff; line-height: 1.3; }

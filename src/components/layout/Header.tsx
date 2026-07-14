@@ -42,6 +42,13 @@ export default function Header() {
     setIsMenuOpen(false);
   };
 
+  // Esc đóng dropdown (blur element đang focus bên trong → group-focus-within tắt)
+  const closeDropdownOnEscape = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      (document.activeElement as HTMLElement | null)?.blur();
+    }
+  };
+
   return (
     <header className="sticky top-0 z-50 w-full bg-[#191b24]/95 backdrop-blur-sm border-b border-[rgba(255,255,255,0.063)]">
       <div className="mx-auto px-4 sm:px-6 lg:px-8 max-w-screen-xl">
@@ -61,12 +68,12 @@ export default function Header() {
               <li><Link href="/danh-sach/phim-le" className="hover:text-white transition-colors">Phim Lẻ</Link></li>
               <li><Link href="/danh-sach/phim-bo" className="hover:text-white transition-colors">Phim Bộ</Link></li>
 
-              {/* Dropdown: Thể loại */}
-              <li className="relative group">
-                <button className="flex items-center gap-1 hover:text-white transition-colors py-2">
-                  Thể loại <ChevronDown size={14} className="transition-transform group-hover:rotate-180" />
+              {/* Dropdown: Thể loại — mở bằng hover HOẶC focus (keyboard/TV remote) */}
+              <li className="relative group" onKeyDown={closeDropdownOnEscape}>
+                <button className="flex items-center gap-1 hover:text-white focus:text-white transition-colors py-2" aria-haspopup="true">
+                  Thể loại <ChevronDown size={14} className="transition-transform group-hover:rotate-180 group-focus-within:rotate-180" />
                 </button>
-                <div className="absolute left-1/2 -translate-x-1/2 top-full pt-2 opacity-0 invisible translate-y-1 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-150 z-50">
+                <div className="absolute left-1/2 -translate-x-1/2 top-full pt-2 opacity-0 invisible translate-y-1 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 group-focus-within:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 transition-all duration-150 z-50">
                   <div className="bg-[#202331] border border-[rgba(255,255,255,0.08)] rounded-xl shadow-2xl p-4 w-[560px] grid grid-cols-4 gap-x-4 gap-y-1">
                     {GENRES.map((g) => (
                       <Link
@@ -81,12 +88,12 @@ export default function Header() {
                 </div>
               </li>
 
-              {/* Dropdown: Quốc gia */}
-              <li className="relative group">
-                <button className="flex items-center gap-1 hover:text-white transition-colors py-2">
-                  Quốc gia <ChevronDown size={14} className="transition-transform group-hover:rotate-180" />
+              {/* Dropdown: Quốc gia — mở bằng hover HOẶC focus (keyboard/TV remote) */}
+              <li className="relative group" onKeyDown={closeDropdownOnEscape}>
+                <button className="flex items-center gap-1 hover:text-white focus:text-white transition-colors py-2" aria-haspopup="true">
+                  Quốc gia <ChevronDown size={14} className="transition-transform group-hover:rotate-180 group-focus-within:rotate-180" />
                 </button>
-                <div className="absolute left-1/2 -translate-x-1/2 top-full pt-2 opacity-0 invisible translate-y-1 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-150 z-50">
+                <div className="absolute left-1/2 -translate-x-1/2 top-full pt-2 opacity-0 invisible translate-y-1 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 group-focus-within:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 transition-all duration-150 z-50">
                   <div className="bg-[#202331] border border-[rgba(255,255,255,0.08)] rounded-xl shadow-2xl p-4 w-[420px] grid grid-cols-3 gap-x-4 gap-y-1">
                     {COUNTRIES.map((c) => (
                       <Link
@@ -114,7 +121,7 @@ export default function Header() {
                 placeholder="Tìm tên phim..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-[#282b3a] text-white text-sm rounded-full py-1.5 pl-4 pr-10 border border-[rgba(255,255,255,0.1)] focus:outline-none focus:border-[#ffd875]"
+                className="bg-[#282b3a] text-white text-sm rounded-full py-1.5 pl-4 pr-10 border border-[rgba(255,255,255,0.1)] focus:outline-none focus:border-[#ffd875] focus:ring-2 focus:ring-[#ffd875]/50"
               />
               <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
                 <Search size={16} />
@@ -175,7 +182,7 @@ export default function Header() {
                     placeholder="Tìm tên phim..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-[#282b3a] text-white text-sm rounded-full py-2.5 pl-4 pr-10 border border-[rgba(255,255,255,0.1)] focus:outline-none focus:border-[#ffd875]"
+                    className="w-full bg-[#282b3a] text-white text-sm rounded-full py-2.5 pl-4 pr-10 border border-[rgba(255,255,255,0.1)] focus:outline-none focus:border-[#ffd875] focus:ring-2 focus:ring-[#ffd875]/50"
                     autoFocus
                   />
                   <button
