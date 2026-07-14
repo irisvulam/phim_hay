@@ -16,21 +16,35 @@ export async function GET(request: NextRequest) {
   const countrySlug = sp.get('quoc-gia') || undefined;
   const yearParam = sp.get('nam');
   const year = yearParam ? parseInt(yearParam, 10) : undefined;
+  // 'dinh-dang' (định dạng): phim-bo | phim-le — DB không lưu nhãn định dạng gốc
+  // từ NguonC (chỉ có thể loại/quốc gia), nên suy luận qua số tập: >1 tập = phim
+  // bộ, còn lại = phim lẻ. Có thể sai lệch nhẹ ở vài phim ranh giới.
+  const format = sp.get('dinh-dang') || undefined;
   const sort = sp.get('sort') === 'name' ? 'name' : 'new';
   const page = Math.max(1, parseInt(sp.get('page') || '1', 10));
 
-  const where: Prisma.FilmWhereInput = {};
-  if (genreSlug) where.genres = { some: { genre: { slug: genreSlug } } };
-  if (countrySlug) where.countries = { some: { country: { slug: countrySlug } } };
-  if (year && !Number.isNaN(year)) where.year = year;
+  // Dùng mảng AND thay vì gán trực tiếp where.OR nhiều lần — tránh trường hợp
+  // OR của từ khoá tìm kiếm và OR của bộ lọc định dạng ghi đè lẫn nhau.
+  const andConditions: Prisma.FilmWhereInput[] = [];
+  if (genreSlug) andConditions.push({ genres: { some: { genre: { slug: genreSlug } } } });
+  if (countrySlug) andConditions.push({ countries: { some: { country: { slug: countrySlug } } } });
+  if (year && !Number.isNaN(year)) andConditions.push({ year });
   if (keyword) {
-    // Tìm theo tên Việt hoá hoặc tên gốc, không phân biệt hoa/thường,
-    // kết hợp AND với các filter khác ở trên (thể loại/quốc gia/năm).
-    where.OR = [
-      { name: { contains: keyword, mode: 'insensitive' } },
-      { originalName: { contains: keyword, mode: 'insensitive' } },
-    ];
+    // Tìm theo tên Việt hoá hoặc tên gốc, không phân biệt hoa/thường.
+    andConditions.push({
+      OR: [
+        { name: { contains: keyword, mode: 'insensitive' } },
+        { originalName: { contains: keyword, mode: 'insensitive' } },
+      ],
+    });
   }
+  if (format === 'phim-bo') {
+    andConditions.push({ totalEpisodes: { gt: 1 } });
+  } else if (format === 'phim-le') {
+    andConditions.push({ OR: [{ totalEpisodes: null }, { totalEpisodes: { lte: 1 } }] });
+  }
+
+  const where: Prisma.FilmWhereInput = andConditions.length > 0 ? { AND: andConditions } : {};
 
   const orderBy: Prisma.FilmOrderByWithRelationInput =
     sort === 'name' ? { name: 'asc' } : { syncedAt: 'desc' };

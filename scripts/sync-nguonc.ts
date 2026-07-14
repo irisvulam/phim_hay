@@ -26,6 +26,14 @@
 //                       - Cắn nhiều connection DB hơn (đã tự tăng pool theo concurrency).
 //                     Khuyến nghị: 3-5 khi chạy --max-pages nhỏ để test, có thể thử
 //                     6-8 khi đã ổn định để chạy full lần đầu.
+//   --start-page=N   Bắt đầu mỗi mục được chọn từ trang N thay vì trang 1 (dùng để
+//                     RESUME sau khi script bị crash/rớt mạng giữa chừng — xem
+//                     log cuối cùng để biết mục nào đang dừng ở trang bao nhiêu).
+//   --only=slug1,slug2   Chỉ chạy các mục có slug này (khớp với --targets đang chọn).
+//                     VD slug: 'new', các slug trong FORMATS/GENRES/COUNTRIES ở
+//                     src/lib/taxonomy.ts (vd hanh-dong, phieu-luu, phim-bo...).
+//   --exclude=slug1,slug2   Bỏ qua các mục có slug này (dùng khi chạy phần "còn lại
+//                     chưa đụng tới" mà không muốn chạy lại các mục đã resume riêng).
 
 // Nạp biến môi trường từ .env trước tiên — script này chạy độc lập qua tsx,
 // không tự động load .env như Next.js hay Prisma CLI (prisma.config.ts).
@@ -48,6 +56,9 @@ const MAX_PAGES = parseInt(getArg('max-pages', '20'), 10);
 const TARGETS = getArg('targets', 'new,formats,genres,countries').split(',');
 const DELAY_MS = parseInt(getArg('delay', '400'), 10);
 const CONCURRENCY = Math.max(1, parseInt(getArg('concurrency', '3'), 10));
+const START_PAGE = Math.max(1, parseInt(getArg('start-page', '1'), 10));
+const ONLY = getArg('only', '').split(',').filter(Boolean);
+const EXCLUDE = getArg('exclude', '').split(',').filter(Boolean);
 
 // Prisma 7 yêu cầu driver adapter thay vì tự đọc DATABASE_URL — xem src/lib/prisma.ts.
 // Tăng số connection trong pool theo concurrency để mỗi worker không phải chờ nhau
@@ -60,6 +71,21 @@ const adapter = new PrismaPg({
 const prisma = new PrismaClient({ adapter });
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Thử lại khi gặp lỗi mạng/DB thoáng qua (VD mất mạng vài giây) trước khi bỏ cuộc hẳn —
+// tránh tình trạng 1 lần rớt mạng ngắn làm mất luôn toàn bộ các mục còn lại trong hàng đợi.
+async function withRetry<T>(fn: () => Promise<T>, retries = 3, backoffMs = 3000): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (attempt < retries) await sleep(backoffMs * (attempt + 1));
+    }
+  }
+  throw lastErr;
+}
 
 interface RawFilmItem {
   name: string;
@@ -87,9 +113,11 @@ interface ListResponse {
 
 // ---- Gọi API bằng Playwright (mở trang, đọc text JSON trả về) ----
 async function fetchJson(page: Page, url: string): Promise<ListResponse> {
-  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  const text = await page.evaluate(() => document.body.innerText);
-  return JSON.parse(text);
+  return withRetry(async () => {
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    const text = await page.evaluate(() => document.body.innerText);
+    return JSON.parse(text);
+  });
 }
 
 function extractYear(item: RawFilmItem): number | null {
@@ -116,27 +144,33 @@ async function upsertFilm(item: RawFilmItem) {
   };
   // upsert theo `slug` (@unique) — chạy lại nhiều lần / nhiều worker cùng lúc
   // chỉ cập nhật bản ghi cũ, không tạo trùng.
-  return prisma.film.upsert({
-    where: { slug: item.slug },
-    update: data,
-    create: { slug: item.slug, ...data },
-  });
+  return withRetry(() =>
+    prisma.film.upsert({
+      where: { slug: item.slug },
+      update: data,
+      create: { slug: item.slug, ...data },
+    })
+  );
 }
 
 async function linkGenre(filmId: string, genreId: string) {
-  await prisma.filmGenre.upsert({
-    where: { filmId_genreId: { filmId, genreId } },
-    update: {},
-    create: { filmId, genreId },
-  });
+  await withRetry(() =>
+    prisma.filmGenre.upsert({
+      where: { filmId_genreId: { filmId, genreId } },
+      update: {},
+      create: { filmId, genreId },
+    })
+  );
 }
 
 async function linkCountry(filmId: string, countryId: string) {
-  await prisma.filmCountry.upsert({
-    where: { filmId_countryId: { filmId, countryId } },
-    update: {},
-    create: { filmId, countryId },
-  });
+  await withRetry(() =>
+    prisma.filmCountry.upsert({
+      where: { filmId_countryId: { filmId, countryId } },
+      update: {},
+      create: { filmId, countryId },
+    })
+  );
 }
 
 // Duyệt 1 danh sách phim (có phân trang), upsert từng phim, tuỳ chọn gắn
@@ -148,7 +182,7 @@ async function crawlListUrl(
   urlBase: string,
   onFilm?: (filmId: string) => Promise<void>
 ) {
-  let currentPage = 1;
+  let currentPage = START_PAGE;
   let totalPage = 1;
   let synced = 0;
 
@@ -187,21 +221,22 @@ async function crawlListUrl(
 }
 
 interface Job {
+  id: string;
   label: string;
   url: string;
   onFilm?: (filmId: string) => Promise<void>;
 }
 
 function buildJobs(genreIds: Map<string, string>, countryIds: Map<string, string>): Job[] {
-  const jobs: Job[] = [];
+  let jobs: Job[] = [];
 
   if (TARGETS.includes('new')) {
-    jobs.push({ label: 'phim-moi-cap-nhat', url: `${BASE}/films/phim-moi-cap-nhat` });
+    jobs.push({ id: 'new', label: 'phim-moi-cap-nhat', url: `${BASE}/films/phim-moi-cap-nhat` });
   }
 
   if (TARGETS.includes('formats')) {
     for (const f of FORMATS as TaxonomyItem[]) {
-      jobs.push({ label: f.name, url: `${BASE}/films/danh-sach/${f.slug}` });
+      jobs.push({ id: f.slug, label: f.name, url: `${BASE}/films/danh-sach/${f.slug}` });
     }
   }
 
@@ -209,6 +244,7 @@ function buildJobs(genreIds: Map<string, string>, countryIds: Map<string, string
     for (const g of GENRES) {
       const genreId = genreIds.get(g.slug)!;
       jobs.push({
+        id: g.slug,
         label: `Thể loại: ${g.name}`,
         url: `${BASE}/films/the-loai/${g.slug}`,
         onFilm: (filmId) => linkGenre(filmId, genreId),
@@ -220,12 +256,17 @@ function buildJobs(genreIds: Map<string, string>, countryIds: Map<string, string
     for (const c of COUNTRIES) {
       const countryId = countryIds.get(c.slug)!;
       jobs.push({
+        id: c.slug,
         label: `Quốc gia: ${c.name}`,
         url: `${BASE}/films/quoc-gia/${c.slug}`,
         onFilm: (filmId) => linkCountry(filmId, countryId),
       });
     }
   }
+
+  // Lọc theo --only / --exclude nếu có (dùng khi resume 1 phần cụ thể)
+  if (ONLY.length > 0) jobs = jobs.filter((j) => ONLY.includes(j.id));
+  if (EXCLUDE.length > 0) jobs = jobs.filter((j) => !EXCLUDE.includes(j.id));
 
   return jobs;
 }
@@ -248,7 +289,11 @@ async function runWorker(workerId: number, context: BrowserContext, jobs: Job[],
 
 async function main() {
   console.log(
-    `Bắt đầu đồng bộ NguonC — targets=[${TARGETS.join(', ')}] max-pages=${MAX_PAGES} delay=${DELAY_MS}ms concurrency=${CONCURRENCY}\n`
+    `Bắt đầu đồng bộ NguonC — targets=[${TARGETS.join(', ')}] max-pages=${MAX_PAGES} delay=${DELAY_MS}ms concurrency=${CONCURRENCY}` +
+      (START_PAGE > 1 ? ` start-page=${START_PAGE}` : '') +
+      (ONLY.length ? ` only=[${ONLY.join(', ')}]` : '') +
+      (EXCLUDE.length ? ` exclude=[${EXCLUDE.join(', ')}]` : '') +
+      '\n'
   );
 
   const browser = await chromium.launch();
@@ -293,14 +338,23 @@ async function main() {
   await Promise.all(workers);
 
   await browser.close();
-  await prisma.$disconnect();
 
-  const totalFilms = await prisma.film.count();
-  console.log(`\nHoàn tất. Hiện DB có tổng cộng ${totalFilms} phim.`);
+  try {
+    const totalFilms = await prisma.film.count();
+    console.log(`\nHoàn tất. Hiện DB có tổng cộng ${totalFilms} phim.`);
+  } catch (err) {
+    console.warn('\nHoàn tất crawl nhưng không đếm được tổng số phim (DB tạm gián đoạn):', (err as Error).message);
+  }
+
+  await prisma.$disconnect();
 }
 
 main().catch(async (err) => {
   console.error('Lỗi không xử lý được:', err);
-  await prisma.$disconnect();
+  try {
+    await prisma.$disconnect();
+  } catch {
+    // bỏ qua lỗi khi disconnect lúc đã lỗi
+  }
   process.exit(1);
 });

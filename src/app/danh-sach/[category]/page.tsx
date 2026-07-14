@@ -4,8 +4,20 @@ import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { getFilmsByCategory, PaginatedFilms } from '@/lib/api';
+import { fetchDbFilms } from '@/lib/dbFilms';
 import FilmCard from '@/components/films/FilmCard';
 import { FilmGridSkeleton, LoadError } from '@/components/ui/Skeleton';
+
+// Các danh mục đọc được từ DB nội bộ (nhiều dữ liệu hơn, không giới hạn bởi cache
+// API gốc). "tv-shows", "phim-dang-chieu", "phim-sap-chieu" vẫn gọi NguonC trực
+// tiếp vì không có nhãn tương ứng đáng tin cậy trong DB (xem ghi chú ở /api/loc-phim).
+function loadFromDb(category: string, page: number): Promise<PaginatedFilms> | null {
+  if (category === 'phim-moi-cap-nhat') return fetchDbFilms({ sort: 'new', page });
+  if (category === 'phim-bo') return fetchDbFilms({ 'dinh-dang': 'phim-bo', sort: 'new', page });
+  if (category === 'phim-le') return fetchDbFilms({ 'dinh-dang': 'phim-le', sort: 'new', page });
+  if (category === 'hoat-hinh') return fetchDbFilms({ 'the-loai': 'hoat-hinh', sort: 'new', page });
+  return null;
+}
 
 export default function CategoryPage() {
   return (
@@ -30,7 +42,8 @@ function CategoryPageInner() {
     setLoading(true);
     setError(false);
     try {
-      const res = await getFilmsByCategory(category, currentPage);
+      const dbPromise = loadFromDb(category, currentPage);
+      const res = dbPromise ? await dbPromise : await getFilmsByCategory(category, currentPage);
       if (!res?.items) { setError(true); } else { setData(res); }
     } catch {
       setError(true);

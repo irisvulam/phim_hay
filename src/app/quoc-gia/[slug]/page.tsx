@@ -3,7 +3,8 @@
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { getFilmsByCountry, PaginatedFilms } from '@/lib/api';
+import { PaginatedFilms } from '@/lib/api';
+import { fetchDbFilms } from '@/lib/dbFilms';
 import { COUNTRIES } from '@/lib/taxonomy';
 import FilmCard from '@/components/films/FilmCard';
 import { FilmGridSkeleton, LoadError } from '@/components/ui/Skeleton';
@@ -34,7 +35,7 @@ function CountryPageInner() {
     setLoading(true);
     setError(false);
     try {
-      const res = await getFilmsByCountry(slug, currentPage);
+      const res = await fetchDbFilms({ 'quoc-gia': slug, sort: 'new', page: currentPage });
       if (!res?.items) { setError(true); } else { setData(res); }
     } catch {
       setError(true);

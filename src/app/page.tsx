@@ -1,13 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { getFilmsByCategory, getNewFilms, PaginatedFilms } from '@/lib/api';
+import { getFilmsByCategory, PaginatedFilms } from '@/lib/api';
+import { fetchDbFilms } from '@/lib/dbFilms';
 import HeroSlider from '@/components/films/HeroSlider';
 import FilmRow from '@/components/films/FilmRow';
 import { PageLoading, LoadError } from '@/components/ui/Skeleton';
 
-// Trang chủ fetch API trực tiếp từ trình duyệt người dùng —
-// server chỉ serve shell tĩnh, không gọi API nguonc.
+// Trang chủ: "Phim Mới", "Phim Bộ Hot", "Anime" đọc từ DB nội bộ (nhiều dữ liệu hơn,
+// kết hợp được điều kiện) — riêng "Đang Chiếu Rạp" vẫn gọi thẳng NguonC vì đây là
+// danh mục mang tính thời điểm (đang chiếu rạp lúc này), không có nhãn tương ứng
+// đáng tin cậy trong DB để suy luận.
 
 type HomeData = {
   newFilms: PaginatedFilms | null;
@@ -25,10 +28,10 @@ export default function HomePage() {
   const load = useCallback(async () => {
     setLoading(true);
     const [newFilms, cinemaFilms, seriesFilms, animeFilms] = await Promise.all([
-      safe(getNewFilms(1)),
+      safe(fetchDbFilms({ sort: 'new', page: 1 })),
       safe(getFilmsByCategory('phim-dang-chieu', 1)),
-      safe(getFilmsByCategory('phim-bo', 1)),
-      safe(getFilmsByCategory('hoat-hinh', 1)),
+      safe(fetchDbFilms({ 'dinh-dang': 'phim-bo', sort: 'new', page: 1 })),
+      safe(fetchDbFilms({ 'the-loai': 'hoat-hinh', sort: 'new', page: 1 })),
     ]);
     setData({ newFilms, cinemaFilms, seriesFilms, animeFilms });
     setLoading(false);
