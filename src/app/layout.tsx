@@ -13,6 +13,14 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "PhimHay - Phim HD Vietsub",
   description: "Trang web xem phim online Vietsub miễn phí",
+  robots: {
+    index: false,
+    follow: false,
+    googleBot: {
+      index: false,
+      follow: false,
+    },
+  },
 };
 
 export default function RootLayout({
