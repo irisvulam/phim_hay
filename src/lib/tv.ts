@@ -7,10 +7,27 @@ const STORAGE_KEY = 'phimhay-tv';
 const COOKIE_NAME = 'phimhay-tv';
 
 const TV_UA_PATTERN =
-  /smart-?tv|tizen|web[o0]s|netcast|bravia|android\s?tv|googletv|crkey|hbbtv|viera|aquosbrowser|roku|espial|philipstv|nettv|opera tv|smarthub/i;
+  /smart-?tv|tizen|web[o0]s|netcast|bravia|android\s?tv|googletv|crkey|hbbtv|viera|aquosbrowser|roku|espial|philipstv|nettv|opera tv|smarthub|shield|mi\s?tv|mibox|aft[a-z]|chromecast/i;
 
 export function isTVUserAgent(ua: string): boolean {
   return TV_UA_PATTERN.test(ua);
+}
+
+/**
+ * Nhiều browser trên Android TV (trình duyệt mặc định, Cốc Cốc...) gửi UA
+ * như Android thường — không có chữ "TV". Heuristic bổ sung:
+ * thiết bị Android mà KHÔNG có cảm ứng thì gần như chắc chắn là TV/box
+ * (mọi điện thoại/tablet Android đều có touch).
+ */
+function isLikelyTVDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent;
+  if (isTVUserAgent(ua)) return true;
+
+  const isAndroid = /android/i.test(ua);
+  const noTouch =
+    (navigator.maxTouchPoints ?? 0) === 0 && !('ontouchstart' in window);
+  return isAndroid && noTouch;
 }
 
 /** Chỉ gọi phía client. Đọc query override → localStorage → UA. */
@@ -27,7 +44,7 @@ export function detectTVMode(): boolean {
   if (stored === '1') return true;
   if (stored === '0') return false;
 
-  return isTVUserAgent(navigator.userAgent);
+  return isLikelyTVDevice();
 }
 
 /** Lưu lựa chọn (localStorage + cookie để SSR có thể dùng sau này). */

@@ -16,10 +16,10 @@ export default function VideoPlayer({ m3u8Url, embedUrl, poster, title }: VideoP
     return <HlsPlayer m3u8Url={m3u8Url} poster={poster} title={title} />;
   }
 
-  // Nguồn embed (streamc.xyz) hiện CHẶN phát video khi bị nhúng iframe,
-  // nên phải mở trình phát ở tab mới (giống cách phim.nguonc.com làm).
+  // Nguồn embed: phát ngay trong trang qua /api/proxy-embed
+  // (proxy phía server gỡ header chặn iframe + chặn popup quảng cáo).
   if (embedUrl) {
-    return <EmbedLauncher embedUrl={embedUrl} poster={poster} title={title} />;
+    return <EmbedFrame embedUrl={embedUrl} title={title} />;
   }
 
   return (
@@ -29,50 +29,45 @@ export default function VideoPlayer({ m3u8Url, embedUrl, poster, title }: VideoP
   );
 }
 
-function EmbedLauncher({
+function EmbedFrame({
   embedUrl,
-  poster,
   title,
 }: {
   embedUrl: string;
-  poster?: string;
   title?: string;
 }) {
-  // TV mode (rule 09): TV browser xử lý popup/tab mới rất tệ → điều hướng cùng tab
+  // TV mode (rule 09): link dự phòng điều hướng cùng tab, không mở popup
   const [isTV, setIsTV] = useState(false);
   useEffect(() => {
     setIsTV(detectTVMode());
   }, []);
 
-  return (
-    <a
-      href={embedUrl}
-      target={isTV ? undefined : '_blank'}
-      rel="noopener noreferrer"
-      aria-label={`Phát ${title || 'video'}`}
-      className="relative block w-full aspect-video bg-black rounded-lg overflow-hidden group cursor-pointer"
-    >
-      {poster && (
-        <img
-          src={poster}
-          alt={title || 'Poster'}
-          className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:opacity-40 transition-opacity"
-        />
-      )}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/40" />
+  const proxiedUrl = `/api/proxy-embed?url=${encodeURIComponent(embedUrl)}`;
 
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 z-10">
-        <span className="w-20 h-20 rounded-full bg-[var(--primary-color)] text-[#191b24] flex items-center justify-center text-3xl shadow-2xl group-hover:scale-110 transition-transform">
-          ▶
-        </span>
-        <span className="text-center px-4 block">
-          {title && <span className="text-white font-semibold mb-1 block">{title}</span>}
-          <span className="text-gray-300 text-sm block">
-            {isTV ? 'Bấm OK để mở trình phát (Back để quay lại)' : 'Bấm để mở trình phát trong tab mới'}
-          </span>
-        </span>
+  return (
+    <div className="w-full">
+      <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
+        <iframe
+          src={proxiedUrl}
+          title={title || 'Trình phát video'}
+          allowFullScreen
+          allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+          referrerPolicy="no-referrer"
+          className="absolute inset-0 w-full h-full border-0"
+        />
       </div>
-    </a>
+      {/* Dự phòng: nguồn embed có thể tự chặn phát khi bị nhúng */}
+      <div className="text-center py-1.5">
+        <a
+          href={embedUrl}
+          target={isTV ? undefined : '_blank'}
+          rel="noopener noreferrer"
+          className="text-xs text-gray-500 hover:text-[var(--primary-color)] focus:text-[var(--primary-color)] transition-colors"
+        >
+          Video không phát được? Mở trình phát riêng →
+        </a>
+      </div>
+    </div>
   );
 }
 
